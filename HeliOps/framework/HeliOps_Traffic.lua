@@ -1,12 +1,33 @@
 ----------------------------------------------------------------
 -- HELIOPS TRAFFIC
--- Generic AI flight routing, proximity tasks and abort handling
+--
+-- MOOSE-native traffic framework.
+--
+-- MOOSE owns:
+--   route
+--   waypoint passage
+--   waypoint tasks
+--   task duration
+--   RTB / holding / landing
 ----------------------------------------------------------------
 
 env.info("=== HELIOPS TRAFFIC START ===")
 
 HeliOps = HeliOps or {}
 HeliOps.Traffic = HeliOps.Traffic or {}
+
+----------------------------------------------------------------
+-- LANDING MODE ENUM
+--
+-- Used only when Config.TacticalLanding is true.
+-- If TacticalLanding is false/nil, native MOOSE/DCS landing
+-- behavior is left completely untouched.
+----------------------------------------------------------------
+
+HeliOps.LandingMode = HeliOps.LandingMode or {
+    OVERHEAD_BREAK = 1,
+    STRAIGHT_IN    = 2,
+}
 
 ----------------------------------------------------------------
 -- CONSTANTS
@@ -22,7 +43,8 @@ local function Shuffle(List)
 
     for i = #List, 2, -1 do
 
-        local j = math.random(i)
+        local j =
+            math.random(i)
 
         List[i], List[j] =
             List[j], List[i]
@@ -33,7 +55,9 @@ end
 -- VALIDATE CONFIG
 ----------------------------------------------------------------
 
-function HeliOps.Traffic:ValidateConfig(Config)
+function HeliOps.Traffic:ValidateConfig(
+    Config
+)
 
     if not Config then
 
@@ -103,11 +127,15 @@ end
 -- CREATE ROUTE PLAN
 ----------------------------------------------------------------
 
-function HeliOps.Traffic:CreateRoutePlan(Config)
+function HeliOps.Traffic:CreateRoutePlan(
+    Config
+)
 
     local plan = {}
 
-    for i, navIndex in ipairs(Config.Route) do
+    for i, navIndex in ipairs(
+        Config.Route
+    ) do
 
         local taskIndex = 0
 
@@ -128,7 +156,7 @@ function HeliOps.Traffic:CreateRoutePlan(Config)
     end
 
     ------------------------------------------------------------
-    -- Shuffle WP + Task pairs together
+    -- Shuffle waypoint/task pairs together
     ------------------------------------------------------------
 
     if Config.RandomizeRoute == true then
@@ -154,6 +182,10 @@ function HeliOps.Traffic:PrepareWaypoint(
     Nav,
     PoolIndex
 )
+
+    ------------------------------------------------------------
+    -- VALIDATE NAV ENTRY
+    ------------------------------------------------------------
 
     if not Nav then
 
@@ -292,9 +324,11 @@ function HeliOps.Traffic:PrepareWaypoint(
     end
 
     local minimumAltitude_ft =
-        terrain_ft + clearance_ft
+        terrain_ft
+        + clearance_ft
 
-    if altitude_ft < minimumAltitude_ft then
+    if altitude_ft <
+        minimumAltitude_ft then
 
         env.warning(
             string.format(
@@ -309,143 +343,34 @@ function HeliOps.Traffic:PrepareWaypoint(
             minimumAltitude_ft
     end
 
+    ------------------------------------------------------------
+    -- RETURN
+    ------------------------------------------------------------
+
     return {
 
-        WP         = Nav.WP,
-        PoolIndex  = PoolIndex,
+        WP =
+            Nav.WP,
 
-        Coordinate = coord,
+        PoolIndex =
+            PoolIndex,
 
-        Speed_kt   = speed_kt,
-        Alt_ft_msl = altitude_ft,
-        Terrain_ft = terrain_ft,
+        Coordinate =
+            coord,
+
+        Speed_kt =
+            speed_kt,
+
+        Alt_ft_msl =
+            altitude_ft,
+
+        Terrain_ft =
+            terrain_ft,
     }
 end
 
 ----------------------------------------------------------------
--- START ORBIT TASK
-----------------------------------------------------------------
-
-function HeliOps.Traffic:StartOrbitTask(
-    Flight,
-    WPData,
-    TaskConfig,
-    Config
-)
-
-    local vec2 =
-        WPData.Coordinate:GetVec2()
-
-    local altitude_m =
-        UTILS.FeetToMeters(
-            WPData.Alt_ft_msl
-        )
-
-    local speed_mps =
-        UTILS.KnotsToMps(
-            WPData.Speed_kt
-        )
-
-    ------------------------------------------------------------
-    -- DCS ORBIT TASK
-    ------------------------------------------------------------
-
-    local orbitTask = {
-
-        id = "Orbit",
-
-        params = {
-
-            pattern = "Circle",
-
-            point = {
-                x = vec2.x,
-                y = vec2.y,
-            },
-
-            speed =
-                speed_mps,
-
-            altitude =
-                altitude_m,
-        }
-    }
-
-    ------------------------------------------------------------
-    -- REPLACE CURRENT DCS TASK WITH ORBIT
-    ------------------------------------------------------------
-
-    Flight.group:SetTask(
-        orbitTask
-    )
-
-    local duration =
-        TaskConfig.Duration_s
-        or 120
-
-    env.info(
-        string.format(
-            "HELIOPS TRAFFIC: %s ORBIT_CIRCLE started at %s for %d sec",
-            Config.Group,
-            WPData.WP,
-            duration
-        )
-    )
-
-    trigger.action.outText(
-        Config.Group
-        .. " ORBIT at "
-        .. WPData.WP
-        .. " for "
-        .. tostring(duration)
-        .. " sec",
-        10
-    )
-
-    ------------------------------------------------------------
-    -- RESUME ROUTE AFTER TASK
-    ------------------------------------------------------------
-
-    SCHEDULER:New(
-
-        nil,
-
-        function()
-
-            if not Flight
-            or not Flight.group
-            or not Flight.group:IsAlive() then
-
-                return
-            end
-
-            env.info(
-                "HELIOPS TRAFFIC: "
-                .. Config.Group
-                .. " ORBIT complete -> resume route"
-            )
-
-            trigger.action.outText(
-                Config.Group
-                .. " ORBIT COMPLETE -> RESUME ROUTE",
-                10
-            )
-
-            Flight:UpdateRoute()
-
-        end,
-
-        {},
-
-        duration
-    )
-end
-
-----------------------------------------------------------------
--- CREATE PROXIMITY TASK
---
--- A task is triggered when the GROUP enters a radius around
--- its associated NAV waypoint.
+-- ADD MOOSE WAYPOINT TASK
 ----------------------------------------------------------------
 
 function HeliOps.Traffic:AddWaypointTask(
@@ -457,7 +382,7 @@ function HeliOps.Traffic:AddWaypointTask(
 )
 
     ------------------------------------------------------------
-    -- 0 = no task
+    -- 0 = NO TASK
     ------------------------------------------------------------
 
     if not TaskIndex
@@ -467,7 +392,7 @@ function HeliOps.Traffic:AddWaypointTask(
     end
 
     ------------------------------------------------------------
-    -- TASK CONFIG
+    -- TASK POOL
     ------------------------------------------------------------
 
     if not Config.TaskPool then
@@ -496,169 +421,99 @@ function HeliOps.Traffic:AddWaypointTask(
     end
 
     ------------------------------------------------------------
-    -- CURRENTLY SUPPORTED TASK
+    -- ORBIT CIRCLE
     ------------------------------------------------------------
 
-    if taskConfig.Type ~= "ORBIT_CIRCLE" then
+    if taskConfig.Type ==
+        "ORBIT_CIRCLE" then
 
-        env.error(
-            "HELIOPS TRAFFIC: Unsupported task type: "
-            .. tostring(taskConfig.Type)
-        )
+        local altitude_m =
+            UTILS.FeetToMeters(
+                WPData.Alt_ft_msl
+            )
 
-        return false
-    end
+        local speed_mps =
+            UTILS.KnotsToMps(
+                WPData.Speed_kt
+            )
 
-    ------------------------------------------------------------
-    -- TRIGGER RADIUS
-    ------------------------------------------------------------
+        --------------------------------------------------------
+        -- MOOSE ORBIT TASK
+        --------------------------------------------------------
 
-    local radius_m =
-        taskConfig.TriggerRadius_m
-        or 3000
+        local orbitTask =
+            Flight.group:TaskOrbit(
+                WPData.Coordinate,
+                altitude_m,
+                speed_mps
+            )
 
-    ------------------------------------------------------------
-    -- TASK ZONE
-    ------------------------------------------------------------
+        if not orbitTask then
 
-    local vec2 =
-        WPData.Coordinate:GetVec2()
+            env.error(
+                "HELIOPS TRAFFIC: TaskOrbit failed at "
+                .. WPData.WP
+            )
 
-    local zoneName =
-        string.format(
-            "HELIOPS_%s_%s_TASK_%d",
-            Config.Group,
-            WPData.WP,
-            TaskIndex
-        )
-
-    local taskZone =
-        ZONE_RADIUS:New(
-            zoneName,
-            vec2,
-            radius_m
-        )
-
-    ------------------------------------------------------------
-    -- WATCH DCS GROUP
-    ------------------------------------------------------------
-
-    local watchedGroup =
-        GROUP:FindByName(
-            Config.Group
-        )
-
-    if not watchedGroup then
-
-        env.error(
-            "HELIOPS TRAFFIC: Group not found for task zone: "
-            .. Config.Group
-        )
-
-        return false
-    end
-
-    ------------------------------------------------------------
-    -- FASTER CHECK FOR FAST AIRCRAFT
-    ------------------------------------------------------------
-
-    taskZone:SetCheckTime(1)
-
-    ------------------------------------------------------------
-    -- ONE SHOT
-    ------------------------------------------------------------
-
-    local triggered = false
-
-    ------------------------------------------------------------
-    -- ENTER ZONE CALLBACK
-    ------------------------------------------------------------
-
-    function taskZone:OnAfterEnteredZone(
-        From,
-        Event,
-        To,
-        Controllable
-    )
-
-        if triggered then
-            return
+            return false
         end
 
-        triggered = true
+        --------------------------------------------------------
+        -- MOOSE WAYPOINT TASK
+        --------------------------------------------------------
+
+        local mooseTask =
+            Flight:AddTaskWaypoint(
+                orbitTask,
+                Waypoint,
+                "Orbit Circle",
+                50,
+                taskConfig.Duration_s
+            )
+
+        if not mooseTask then
+
+            env.error(
+                "HELIOPS TRAFFIC: AddTaskWaypoint failed at "
+                .. WPData.WP
+            )
+
+            return false
+        end
 
         env.info(
             string.format(
-                "HELIOPS TRAFFIC: %s entered task radius at %s",
+                "HELIOPS TRAFFIC: %s ORBIT queued at %s | %.0f ft | %.0f kt | duration=%d sec",
                 Config.Group,
-                WPData.WP
+                WPData.WP,
+                WPData.Alt_ft_msl,
+                WPData.Speed_kt,
+                taskConfig.Duration_s or 0
             )
         )
 
-        trigger.action.outText(
-            Config.Group
-            .. " TASK TRIGGER: "
-            .. WPData.WP,
-            10
-        )
-
-        --------------------------------------------------------
-        -- Stop further zone checks
-        --------------------------------------------------------
-
-        self:TriggerStop()
-
-        --------------------------------------------------------
-        -- EXECUTE TASK
-        --------------------------------------------------------
-
-        HeliOps.Traffic:StartOrbitTask(
-            Flight,
-            WPData,
-            taskConfig,
-            Config
-        )
+        return true
     end
 
     ------------------------------------------------------------
-    -- START MONITORING
+    -- UNKNOWN TASK
     ------------------------------------------------------------
 
-    taskZone:Trigger(
-        watchedGroup
+    env.error(
+        "HELIOPS TRAFFIC: Unsupported task type: "
+        .. tostring(taskConfig.Type)
     )
 
-    ------------------------------------------------------------
-    -- Keep reference alive
-    ------------------------------------------------------------
-
-    Flight._HeliOpsTaskZones =
-        Flight._HeliOpsTaskZones
-        or {}
-
-    table.insert(
-        Flight._HeliOpsTaskZones,
-        taskZone
-    )
-
-    env.info(
-        string.format(
-            "HELIOPS TRAFFIC: %s proximity task created at %s radius=%d m task=%d",
-            Config.Group,
-            WPData.WP,
-            radius_m,
-            TaskIndex
-        )
-    )
-
-    return true
+    return false
 end
 
 ----------------------------------------------------------------
--- BUILD ROUTE
+-- BUILD MOOSE ROUTE
 --
--- Build MOOSE route immediately.
--- DO NOT UpdateRoute here.
+-- Route is prepared immediately.
+-- UpdateRoute is NOT called here.
+--
+-- This prevents false ARRIVED at mission start.
 ----------------------------------------------------------------
 
 function HeliOps.Traffic:BuildRoute(
@@ -666,18 +521,30 @@ function HeliOps.Traffic:BuildRoute(
     Config
 )
 
-    if not self:ValidateConfig(Config) then
+    if not self:ValidateConfig(
+        Config
+    ) then
+
         return false
     end
 
     ------------------------------------------------------------
-    -- Prevent duplicate route creation
+    -- PREVENT DUPLICATE BUILD
     ------------------------------------------------------------
 
     if Flight._HeliOpsRoutePrepared then
 
+        env.warning(
+            "HELIOPS TRAFFIC: Route already prepared for "
+            .. Config.Group
+        )
+
         return true
     end
+
+    ------------------------------------------------------------
+    -- ROUTE PLAN
+    ------------------------------------------------------------
 
     local plan =
         self:CreateRoutePlan(
@@ -685,7 +552,7 @@ function HeliOps.Traffic:BuildRoute(
         )
 
     ------------------------------------------------------------
-    -- RTB
+    -- DESTINATION
     ------------------------------------------------------------
 
     local destination =
@@ -700,6 +567,12 @@ function HeliOps.Traffic:BuildRoute(
             .. tostring(Config.RTB)
         )
 
+        trigger.action.outText(
+            "ERROR: RTB base not found: "
+            .. tostring(Config.RTB),
+            20
+        )
+
         return false
     end
 
@@ -708,7 +581,7 @@ function HeliOps.Traffic:BuildRoute(
     )
 
     ------------------------------------------------------------
-    -- SCREEN ROUTE
+    -- ROUTE DISPLAY
     ------------------------------------------------------------
 
     local routeText =
@@ -716,10 +589,12 @@ function HeliOps.Traffic:BuildRoute(
         .. " route:\n"
 
     ------------------------------------------------------------
-    -- ADD WAYPOINTS
+    -- CREATE MOOSE WAYPOINTS
     ------------------------------------------------------------
 
-    for routePosition, item in ipairs(plan) do
+    for routePosition, item in ipairs(
+        plan
+    ) do
 
         local nav =
             Config.NavPool[
@@ -734,11 +609,14 @@ function HeliOps.Traffic:BuildRoute(
             )
 
         if not wpData then
+
             return false
         end
 
         --------------------------------------------------------
-        -- false = don't update DCS controller yet
+        -- ADD MOOSE WAYPOINT
+        --
+        -- false = no UpdateRoute yet.
         --------------------------------------------------------
 
         local waypoint =
@@ -761,7 +639,33 @@ function HeliOps.Traffic:BuildRoute(
         end
 
         --------------------------------------------------------
-        -- PROXIMITY TASK
+        -- NAME WAYPOINT
+        --------------------------------------------------------
+
+        waypoint.name =
+            wpData.WP
+
+        --------------------------------------------------------
+        -- DEBUG CREATION
+        --------------------------------------------------------
+
+        env.info(
+            string.format(
+                "HELIOPS TRAFFIC: CREATED WP route=%d pool=%d name=%s uid=%s temp=%s",
+                routePosition,
+                item.NavIndex,
+                wpData.WP,
+                tostring(
+                    waypoint.uid
+                ),
+                tostring(
+                    waypoint.temp
+                )
+            )
+        )
+
+        --------------------------------------------------------
+        -- MOOSE WAYPOINT TASK
         --------------------------------------------------------
 
         local taskOK =
@@ -774,16 +678,17 @@ function HeliOps.Traffic:BuildRoute(
             )
 
         if not taskOK then
+
             return false
         end
 
         --------------------------------------------------------
-        -- LOG
+        -- ROUTE LOG
         --------------------------------------------------------
 
         env.info(
             string.format(
-                "HELIOPS TRAFFIC: %s Route[%d] NavPool[%d] %s | %.0f kt | %.0f ft | Task=%d",
+                "HELIOPS TRAFFIC: %s Route[%d] NavPool[%d] %s | %.0f kt | %.0f ft MSL | Task=%d",
                 Config.Group,
                 routePosition,
                 item.NavIndex,
@@ -795,12 +700,14 @@ function HeliOps.Traffic:BuildRoute(
         )
 
         --------------------------------------------------------
-        -- SCREEN TEXT
+        -- SCREEN
         --------------------------------------------------------
 
         routeText =
             routeText
-            .. tostring(routePosition)
+            .. tostring(
+                routePosition
+            )
             .. ": "
             .. wpData.WP
             .. "  "
@@ -854,7 +761,7 @@ function HeliOps.Traffic:BuildRoute(
     env.info(
         "HELIOPS TRAFFIC: "
         .. Config.Group
-        .. " route prepared"
+        .. " MOOSE route prepared"
     )
 
     return true
@@ -911,14 +818,21 @@ function HeliOps.Traffic:AbortAndRTB(
 end
 
 ----------------------------------------------------------------
--- START TRAFFIC
+-- START TRAFFIC FLIGHT
 ----------------------------------------------------------------
 
 function HeliOps.Traffic:Start(
     Config
 )
 
-    if not self:ValidateConfig(Config) then
+    ------------------------------------------------------------
+    -- VALIDATE
+    ------------------------------------------------------------
+
+    if not self:ValidateConfig(
+        Config
+    ) then
+
         return nil
     end
 
@@ -932,7 +846,56 @@ function HeliOps.Traffic:Start(
         )
 
     if not flight then
+
         return nil
+    end
+
+    ------------------------------------------------------------
+    -- LANDING POLICY
+    --
+    -- TacticalLanding = true:
+    --   ModeOpt = HeliOps.LandingMode.OVERHEAD_BREAK
+    --   ModeOpt = HeliOps.LandingMode.STRAIGHT_IN
+    --
+    -- TacticalLanding = false/nil:
+    --   Native MOOSE/DCS landing behavior is left untouched.
+    ------------------------------------------------------------
+
+    if Config.TacticalLanding then
+
+        if Config.ModeOpt ==
+            HeliOps.LandingMode.OVERHEAD_BREAK then
+
+            flight:SetOptionLandingOverheadBreak()
+
+            env.info(
+                "HELIOPS TRAFFIC: "
+                .. Config.Group
+                .. " landing mode = TACTICAL / OVERHEAD BREAK"
+            )
+
+        elseif Config.ModeOpt ==
+            HeliOps.LandingMode.STRAIGHT_IN then
+
+            flight:SetOptionLandingStraightIn()
+
+            env.info(
+                "HELIOPS TRAFFIC: "
+                .. Config.Group
+                .. " landing mode = TACTICAL / STRAIGHT IN"
+            )
+
+        else
+
+            env.error(
+                "HELIOPS TRAFFIC: "
+                .. Config.Group
+                .. " TacticalLanding enabled but ModeOpt is invalid: "
+                .. tostring(Config.ModeOpt)
+            )
+
+            return nil
+        end
     end
 
     ------------------------------------------------------------
@@ -948,9 +911,30 @@ function HeliOps.Traffic:Start(
     end
 
     ------------------------------------------------------------
-    -- PREPARE ROUTE NOW
+    -- DEFAULT / RTB CRUISE ALTITUDE
     --
-    -- Prevent initial false ARRIVED state.
+    -- MOOSE API uses FEET.
+    ------------------------------------------------------------
+
+    if Config.CruiseAlt_ft then
+
+        flight:SetDefaultAltitude(
+            Config.CruiseAlt_ft
+        )
+
+        env.info(
+            string.format(
+                "HELIOPS TRAFFIC: %s default cruise altitude = %.0f ft",
+                Config.Group,
+                Config.CruiseAlt_ft
+            )
+        )
+    end
+
+    ------------------------------------------------------------
+    -- PREPARE ROUTE IMMEDIATELY
+    --
+    -- Prevent false ARRIVED at mission start.
     ------------------------------------------------------------
 
     local prepared =
@@ -971,10 +955,10 @@ function HeliOps.Traffic:Start(
     end
 
     ------------------------------------------------------------
-    -- TAKEOFF -> ACTIVATE ROUTE
+    -- TAKEOFF -> SEND MOOSE ROUTE TO DCS
     ------------------------------------------------------------
 
-    function flight:onafterTakeoff(
+    function flight:OnAfterTakeoff(
         From,
         Event,
         To,
@@ -1051,6 +1035,10 @@ function HeliOps.Traffic:Start(
             Config.Group
         )
     end
+
+    ------------------------------------------------------------
+    -- READY
+    ------------------------------------------------------------
 
     env.info(
         "HELIOPS TRAFFIC: "

@@ -17,7 +17,6 @@ HeliOps.Config = {
 
     Verbosity = 3,
 
-
     ------------------------------------------------------------
     -- CYPRUS
     ------------------------------------------------------------
@@ -27,7 +26,7 @@ HeliOps.Config = {
         HomeBase = AIRBASE.Syria.Akrotiri,
 
         --------------------------------------------------------
-        -- NAV defaults
+        -- NAV DEFAULTS
         --------------------------------------------------------
 
         NavPrefix = "NAV_CYP_",
@@ -45,15 +44,29 @@ HeliOps.Config = {
             Modulation =
                 radio.modulation.AM,
 
+            ----------------------------------------------------
+            -- GROUND TRAFFIC
+            ----------------------------------------------------
+
             TaxiLimit = 1,
 
-            ShowHoldingPatterns = false,
+            ----------------------------------------------------
+            -- HOLDING
+            ----------------------------------------------------
+
+            ShowHoldingPatterns = true,
+
+            -- Length of Akrotiri holding racetrack in NM.
+            -- MOOSE default is considerably longer.
+            HoldingLengthNM = 5,
+
+            ----------------------------------------------------
+            -- RADIO
+            ----------------------------------------------------
 
             RadioOnlyIfPlayers = true,
         },
-
     },
-
 }
 
 env.info("=== HELIOPS CONFIG READY ===")

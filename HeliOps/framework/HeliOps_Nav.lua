@@ -8,6 +8,8 @@ env.info("=== HELIOPS NAV START ===")
 HeliOps = HeliOps or {}
 HeliOps.Nav = HeliOps.Nav or {}
 
+local Zones =
+    HeliOps.ME.Assets.Zones
 
 ----------------------------------------------------------------
 -- CYPRUS NAVIGATION ZONES
@@ -15,19 +17,17 @@ HeliOps.Nav = HeliOps.Nav or {}
 
 HeliOps.Nav.Cyprus = {
 
-    "NAV_CYP_01",
-    "NAV_CYP_02",
-    "NAV_CYP_03",
-    "NAV_CYP_04",
-    "NAV_CYP_05",
-    "NAV_CYP_06",
-    "NAV_CYP_07",
-    "NAV_CYP_08",
-    "NAV_CYP_09",
-    "NAV_CYP_10",
-
+    Zones.NavCyp01.Name,
+    Zones.NavCyp02.Name,
+    Zones.NavCyp03.Name,
+    Zones.NavCyp04.Name,
+    Zones.NavCyp05.Name,
+    Zones.NavCyp06.Name,
+    Zones.NavCyp07.Name,
+    Zones.NavCyp08.Name,
+    Zones.NavCyp09.Name,
+    Zones.NavCyp10.Name,
 }
-
 
 ----------------------------------------------------------------
 -- GET ALL EXISTING NAV ZONES
@@ -40,7 +40,6 @@ function HeliOps.Nav:GetZones(Area)
 
     local zones = {}
 
-
     if not names then
 
         env.error(
@@ -50,7 +49,6 @@ function HeliOps.Nav:GetZones(Area)
 
         return zones
     end
-
 
     for _, zoneName in ipairs(names) do
 
@@ -68,23 +66,17 @@ function HeliOps.Nav:GetZones(Area)
                 "HELIOPS NAV: Found "
                 .. zoneName
             )
-
         else
 
             env.info(
                 "HELIOPS NAV: Zone not present: "
                 .. zoneName
             )
-
         end
-
     end
 
-
     return zones
-
 end
-
 
 ----------------------------------------------------------------
 -- SHUFFLE TABLE
@@ -99,24 +91,13 @@ function HeliOps.Nav:Shuffle(List)
 
         List[i], List[j] =
             List[j], List[i]
-
     end
 
-
     return List
-
 end
-
 
 ----------------------------------------------------------------
 -- GET ROUTE ZONES
---
--- Mode:
--- FIXED
--- RANDOM
---
--- Count:
--- nil = all available
 ----------------------------------------------------------------
 
 function HeliOps.Nav:GetRoute(
@@ -128,7 +109,6 @@ function HeliOps.Nav:GetRoute(
     local zones =
         self:GetZones(Area)
 
-
     if #zones == 0 then
 
         env.error(
@@ -138,58 +118,32 @@ function HeliOps.Nav:GetRoute(
         return {}
     end
 
-
-    ------------------------------------------------------------
-    -- Randomize
-    ------------------------------------------------------------
-
     if Mode == "RANDOM" then
-
         self:Shuffle(zones)
-
     end
-
-
-    ------------------------------------------------------------
-    -- Determine number
-    ------------------------------------------------------------
 
     local useCount
 
     if Count == nil then
-
         useCount = #zones
-
     else
-
         useCount =
             math.min(
                 Count,
                 #zones
             )
-
     end
-
-
-    ------------------------------------------------------------
-    -- Create output
-    ------------------------------------------------------------
 
     local selected = {}
 
     for i = 1, useCount do
-
         table.insert(
             selected,
             zones[i]
         )
-
     end
 
-
     return selected
-
 end
-
 
 env.info("=== HELIOPS NAV READY ===")
